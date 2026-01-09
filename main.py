@@ -10,6 +10,7 @@ from cryptography.hazmat.primitives.serialization import load_der_private_key
 import base64
 import textwrap
 import json, time, os
+import requests
 
 def base64url_encode(data: bytes) -> str:
     return base64.urlsafe_b64encode(data).rstrip(b'=').decode('utf-8')
@@ -17,12 +18,7 @@ def base64url_encode(data: bytes) -> str:
 def create_signature(method, requestURI, clientID, requestTime, requestBody, privateKey):
     constructContent = method + " " + requestURI + "\n" + clientID + "." + requestTime + "." + requestBody
 
-    # key_pem = "-----BEGIN RSA PRIVATE KEY-----\n"
-    # key_pem += "\n".join(textwrap.wrap(privateKey, 64))
-    # key_pem += "\n-----END RSA PRIVATE KEY-----\n"
     key_pem = base64.b64decode(privateKey)
-
-    # key_bytes = base64.b64decode(privateKey)
 
     # Load private key
     private_key = load_der_private_key(
@@ -59,16 +55,14 @@ def receive_data():
     #get value from env
     load_dotenv()
 
-    #do signature
-
     #get date time now
     now = datetime.now(ZoneInfo("Asia/Kuala_Lumpur"))
     formattedDateTime = now.strftime("%Y%m%d%H%M%S%z")
 
     #create response
-    jsonResponse = '{"result": {"resultCode": "SUCCESS", "resultStatus": "S","resultMessage": "success"}}'
+    jsonResponse = "{\"result\": {\"resultCode\": \"SUCCESS\", \"resultStatus\": \"S\",\"resultMessage\": \"success\"}}"
     dictResponse = json.loads(jsonResponse)
-    response = jsonify(dictResponse)
+    #response = jsonify(dictResponse)
 
     #get value from env
     clientId = os.getenv("CLIENTID")
@@ -77,14 +71,15 @@ def receive_data():
     #signature
     signature = create_signature("POST", "/receive", clientId, formattedDateTime, jsonResponse, privateKey)
 
-    #set headers
-    response.headers["signature"] = "algorithm=RSA256,keyVersion=0,signature=" + signature
-    response.headers["client-id"] =  clientId
-    response.headers["content-type"] = "application/json; charset=utf-8"
-    response.headers["response-time"] = formattedDateTime
+    headers = {
+        "Content-Type": "application/json; charset=UTF-8",
+        "response-time": formattedDateTime,
+        "client-id": clientId,
+        "signature": "algorithm=RSA256,keyVersion=1,signature=" + signature
+    }
 
-    return response
-
+    # forward response as JSON
+    return jsonify(dictResponse), 200, headers
 
 if __name__ == "__main__":
     app.run(port=7777, debug=True)
