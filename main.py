@@ -12,7 +12,7 @@ import textwrap
 import json, time, os
 
 def base64url_encode(data: bytes) -> str:
-    return base64.urlsafe_b64encode(data).rstrip('=').decode('utf-8')
+    return base64.urlsafe_b64encode(data).rstrip(b'=').decode('utf-8')
 
 def create_signature(method, requestURI, clientID, requestTime, requestBody, privateKey):
     constructContent = method + " " + requestURI + "\n" + clientID + "." + requestTime + "." + requestBody
