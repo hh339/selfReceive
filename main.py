@@ -10,29 +10,75 @@ from cryptography.hazmat.primitives.serialization import load_der_private_key
 import base64
 import textwrap
 import json, time, os
+import sys
 
-def base64url_encode(data: bytes) -> str:
-    return base64.urlsafe_b64encode(data).rstrip(b'=').decode('utf-8')
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+import base64
 
-def create_signature(method, requestURI, clientID, requestTime, requestBody, privateKey):
-    constructContent = method + " " + requestURI + "\n" + clientID + "." + requestTime + "." + requestBody
+try:
+    from urllib.parse import quote_plus, unquote_plus
+except ImportError:
+    from urllib import quote_plus, unquote_plus
+# from com.alipay.alipayplus.api.tools.constants import *
 
-    key_pem = base64.b64decode(privateKey)
+IS_PYTHON_VERSION_3 = sys.version_info[0] == 3
 
-    # Load private key
-    private_key = load_der_private_key(
-        key_pem,
-        password=None
+
+def __add_start_end(key, startMarker, endMarker):
+    if key.find(startMarker) < 0:
+        key = startMarker + key
+    if key.find(endMarker) < 0:
+        key = key + endMarker
+    return key
+
+
+def __fill_private_key_marker(private_key):
+    return __add_start_end(private_key, "-----BEGIN RSA PRIVATE KEY-----\n", "\n-----END RSA PRIVATE KEY-----")
+
+def __sign_with_sha256rsa(private_key, sign_content, charset='utf-8'):
+    sign_content = sign_content.encode(charset)
+
+    # Convert string to bytes
+    private_key_bytes = private_key.encode('utf-8')
+
+    # Load the key
+    privKEy = serialization.load_pem_private_key(
+        private_key_bytes,
+        password=None,
     )
 
-    signature = private_key.sign(
-        constructContent.encode("utf-8"),
+    signature = privKEy.sign(
+        sign_content,
         padding.PKCS1v15(),
         hashes.SHA256()
     )
 
-    generated_signature = base64url_encode(signature)
-    return generated_signature
+    sign_value = base64.b64encode(signature)
+
+    if IS_PYTHON_VERSION_3:
+        sign_value = str(sign_value, encoding=charset)
+
+    '''
+    do url encode
+    '''
+    if IS_PYTHON_VERSION_3:
+        sign_value = quote_plus(sign_value, encoding=charset)
+    else:
+        sign_value = quote_plus(sign_value)
+
+    return sign_value
+
+def gen_sign_content(http_method, path, client_id, time_string, content):
+    payload = http_method + " " + path + "\n" + client_id + "." + time_string + "." + content
+    return payload
+
+
+def sign(http_method, path, client_id, req_time_str, req_body, merchant_private_key):
+    req_content = gen_sign_content(http_method, path, client_id, req_time_str, req_body)
+    private_key = __fill_private_key_marker(merchant_private_key)
+    sign_value = __sign_with_sha256rsa(private_key, req_content)
+    return sign_value
 
 app = Flask(__name__)
 
@@ -66,7 +112,9 @@ def receive_data():
     privateKey = os.getenv("RSAENCRYPTKEY")
 
     #signature
-    signature = create_signature("POST", "/receive", clientId, formattedDateTime, jsonResponse, privateKey)
+    signature = sign("POST", "/receive", clientId, formattedDateTime, jsonResponse, privateKey)
+
+    print(signature)
 
     headers = {
         "Content-Type": "application/json; charset=UTF-8",
