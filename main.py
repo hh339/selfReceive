@@ -5,25 +5,28 @@ from zoneinfo import ZoneInfo
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import padding, rsa
 from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.serialization import load_der_private_key
+
 import base64
 import textwrap
 import json, time, os
 
 def base64url_encode(data: bytes) -> str:
-    return base64.urlsafe_b64encode(data).rstrip(b'=').decode('utf-8')
+    return base64.urlsafe_b64encode(data).rstrip('=').decode('utf-8')
 
 def create_signature(method, requestURI, clientID, requestTime, requestBody, privateKey):
     constructContent = method + " " + requestURI + "\n" + clientID + "." + requestTime + "." + requestBody
 
-    key_pem = "-----BEGIN RSA PRIVATE KEY-----\n"
-    key_pem += "\n".join(textwrap.wrap(privateKey, 64))
-    key_pem += "\n-----END RSA PRIVATE KEY-----\n"
+    # key_pem = "-----BEGIN RSA PRIVATE KEY-----\n"
+    # key_pem += "\n".join(textwrap.wrap(privateKey, 64))
+    # key_pem += "\n-----END RSA PRIVATE KEY-----\n"
+    key_pem = base64.b64decode(privateKey)
 
     # key_bytes = base64.b64decode(privateKey)
 
     # Load private key
-    private_key = serialization.load_pem_private_key(
-        key_pem.encode("utf-8"),
+    private_key = load_der_private_key(
+        key_pem,
         password=None
     )
 
