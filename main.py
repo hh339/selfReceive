@@ -78,7 +78,7 @@ def receive_data():
     signature = create_signature("POST", "/receive", clientId, formattedDateTime, jsonResponse, privateKey)
 
     #set headers
-    response.headers["signature"] = "algorithm=RSA256,keyVersion=1,signature=" + signature
+    response.headers["signature"] = "algorithm=RSA256,keyVersion=0,signature=" + signature
     response.headers["client-id"] =  clientId
     response.headers["content-type"] = "application/json; charset=utf-8"
     response.headers["response-time"] = formattedDateTime
