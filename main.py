@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, Response
 from dotenv import load_dotenv
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -76,7 +76,7 @@ def receive_data():
     }
 
     # forward response as JSON
-    return jsonify(jsonResponse), 200, headers
+    return Response(jsonify(jsonResponse), 200, headers)
 
 if __name__ == "__main__":
     app.run(port=7777, debug=True)
