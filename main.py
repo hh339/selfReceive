@@ -10,7 +10,6 @@ from cryptography.hazmat.primitives.serialization import load_der_private_key
 import base64
 import textwrap
 import json, time, os
-import requests
 
 def base64url_encode(data: bytes) -> str:
     return base64.urlsafe_b64encode(data).rstrip(b'=').decode('utf-8')
@@ -61,8 +60,6 @@ def receive_data():
 
     #create response
     jsonResponse = "{\"result\": {\"resultCode\": \"SUCCESS\", \"resultStatus\": \"S\",\"resultMessage\": \"success\"}}"
-    dictResponse = json.loads(jsonResponse)
-    #response = jsonify(dictResponse)
 
     #get value from env
     clientId = os.getenv("CLIENTID")
@@ -79,7 +76,7 @@ def receive_data():
     }
 
     # forward response as JSON
-    return jsonify(dictResponse), 200, headers
+    return jsonify(jsonResponse), 200, headers
 
 if __name__ == "__main__":
     app.run(port=7777, debug=True)
