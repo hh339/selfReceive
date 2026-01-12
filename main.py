@@ -24,14 +24,12 @@ except ImportError:
 
 IS_PYTHON_VERSION_3 = sys.version_info[0] == 3
 
-
 def __add_start_end(key, startMarker, endMarker):
     if key.find(startMarker) < 0:
         key = startMarker + key
     if key.find(endMarker) < 0:
         key = key + endMarker
     return key
-
 
 def __fill_private_key_marker(private_key):
     return __add_start_end(private_key, "-----BEGIN RSA PRIVATE KEY-----\n", "\n-----END RSA PRIVATE KEY-----")
@@ -72,7 +70,6 @@ def __sign_with_sha256rsa(private_key, sign_content, charset='utf-8'):
 def gen_sign_content(http_method, path, client_id, time_string, content):
     payload = http_method + " " + path + "\n" + client_id + "." + time_string + "." + content
     return payload
-
 
 def sign(http_method, path, client_id, req_time_str, req_body, merchant_private_key):
     req_content = gen_sign_content(http_method, path, client_id, req_time_str, req_body)
