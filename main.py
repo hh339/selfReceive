@@ -6,6 +6,7 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import padding, rsa
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.serialization import load_der_private_key
+import urllib.parse
 
 import base64
 import textwrap
@@ -15,11 +16,6 @@ import sys
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 import base64
-
-try:
-    from urllib.parse import quote_plus, unquote_plus
-except ImportError:
-    from urllib import quote_plus, unquote_plus
 # from com.alipay.alipayplus.api.tools.constants import *
 
 IS_PYTHON_VERSION_3 = sys.version_info[0] == 3
@@ -52,20 +48,15 @@ def __sign_with_sha256rsa(private_key, sign_content, charset='utf-8'):
         hashes.SHA256()
     )
 
-    sign_value = base64.b64encode(signature)
+    base64_url_signature = (
+        base64.urlsafe_b64encode(signature)
+        .decode()
+        .rstrip("=")
+    )
 
-    if IS_PYTHON_VERSION_3:
-        sign_value = str(sign_value, encoding=charset)
+    url_encoded_sig = urllib.parse.quote(base64_url_signature)
 
-    '''
-    do url encode
-    '''
-    if IS_PYTHON_VERSION_3:
-        sign_value = quote_plus(sign_value, encoding=charset)
-    else:
-        sign_value = quote_plus(sign_value)
-
-    return sign_value
+    return url_encoded_sig
 
 def gen_sign_content(http_method, path, client_id, time_string, content):
     payload = http_method + " " + path + "\n" + client_id + "." + time_string + "." + content
@@ -121,7 +112,7 @@ def receive_data():
     }
 
     # forward response as JSON
-    return Response(jsonify(jsonResponse), 200, headers)
+    return Response(jsonResponse, 200, headers)
 
 if __name__ == "__main__":
     app.run(port=7777, debug=True)
