@@ -195,10 +195,6 @@ def pay():
     clientId = os.getenv("CLIENTID")
     privateKey = os.getenv("RSAENCRYPTKEY")
 
-    #get value from env
-    clientId = os.getenv("CLIENTID")
-    privateKey = os.getenv("RSAENCRYPTKEY")
-
     formattedDateTime = datetime.now(ZoneInfo("Asia/Kuala_Lumpur")).strftime("%Y%m%d%H%M%S%z")
 
     jsonDict = {
@@ -215,7 +211,7 @@ def pay():
     jsonResponse = json.dumps(jsonDict)
 
     #signature
-    signature = sign("POST", "/receive", clientId, formattedDateTime, jsonResponse, privateKey)
+    signature = sign("POST", "/pay", clientId, formattedDateTime, jsonResponse, privateKey)
 
     headers = {
         "Content-Type": "application/json; charset=UTF-8",
@@ -226,7 +222,6 @@ def pay():
 
     # forward response as JSON
     return Response(jsonResponse, 200, headers)
-
 
 if __name__ == "__main__":
     app.run(port=7777, debug=True)
