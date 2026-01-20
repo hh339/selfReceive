@@ -202,10 +202,14 @@ def pay():
     if not r.exists(paymentRequestId):
         print("not exist")
         paymentId = datetime.now(ZoneInfo("Asia/Kuala_Lumpur")).strftime("%Y%m%d%H%M%S")
-        r.set(paymentRequestId, paymentId)
+        paymentTime = datetime.now(ZoneInfo("Asia/Kuala_Lumpur")).isoformat(timespec="seconds")
+        save = paymentId + "|" + paymentTime
+        r.set(paymentRequestId, save)
     else:
         print("exist")
-        paymentId = r.get(paymentRequestId)
+        saved = r.get(paymentRequestId)
+        paymentId = saved.split('|')[0]
+        paymentTime = saved.split('|')[0]
 
     formattedDateTime = datetime.now(ZoneInfo("Asia/Kuala_Lumpur")).strftime("%Y%m%d%H%M%S%z")
 
@@ -217,7 +221,7 @@ def pay():
         },
         "paymentId": paymentId,
         "customerId": "1234567890123456",
-        "paymentTime": datetime.now(ZoneInfo("Asia/Kuala_Lumpur")).isoformat(timespec="seconds")
+        "paymentTime": paymentTime
     }
 
     jsonResponse = json.dumps(jsonDict)
