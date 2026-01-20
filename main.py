@@ -209,7 +209,7 @@ def pay():
         print("exist")
         saved = r.get(paymentRequestId)
         paymentId = saved.split('|')[0]
-        paymentTime = saved.split('|')[0]
+        paymentTime = saved.split('|')[1]
 
     formattedDateTime = datetime.now(ZoneInfo("Asia/Kuala_Lumpur")).strftime("%Y%m%d%H%M%S%z")
 
