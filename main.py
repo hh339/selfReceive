@@ -10,7 +10,7 @@ import urllib.parse
 
 import base64
 import textwrap
-import json, time, os
+import json, time, os, redis
 import sys
 import requests
 
@@ -185,7 +185,7 @@ def pay():
     # paymentAmountCurrency = data["paymentAmount"]["currency"]
     # payToAmountValue = data["payToAmount"]["value"]
     # payToAmountCurrency = data["payToAmount"]["currency"]
-    # paymentRequestId = data["paymentRequestId"]
+    paymentRequestId = data["paymentRequestId"]
     print(data)
 
     #get value from env
@@ -195,6 +195,18 @@ def pay():
     clientId = os.getenv("CLIENTID")
     privateKey = os.getenv("RSAENCRYPTKEY")
 
+    #redis
+    r = redis.Redis.from_url(os.environ.get('REDIS_URL'),decode_responses=True)
+
+    #check if paymentID in redis
+    if not r.exists(paymentRequestId):
+        print("not exist")
+        paymentId = datetime.now(ZoneInfo("Asia/Kuala_Lumpur")).strftime("%Y%m%d%H%M%S")
+        r.set(paymentRequestId, paymentId)
+    else:
+        print("exist")
+        paymentId = r.get(paymentRequestId)
+
     formattedDateTime = datetime.now(ZoneInfo("Asia/Kuala_Lumpur")).strftime("%Y%m%d%H%M%S%z")
 
     jsonDict = {
@@ -203,7 +215,7 @@ def pay():
             "resultStatus": "S",
             "resultMessage": "success"
         },
-        "paymentId": datetime.now(ZoneInfo("Asia/Kuala_Lumpur")).strftime("%Y%m%d%H%M%S"),
+        "paymentId": paymentId,
         "customerId": "1234567890123456",
         "paymentTime": datetime.now(ZoneInfo("Asia/Kuala_Lumpur")).isoformat(timespec="seconds")
     }
