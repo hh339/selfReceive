@@ -205,7 +205,7 @@ def pay():
         },
         "paymentId": datetime.now(ZoneInfo("Asia/Kuala_Lumpur")).strftime("%Y%m%d%H%M%S"),
         "customerId": "1234567890123456",
-        "paymentTime": formattedDateTime
+        "paymentTime": datetime.now(ZoneInfo("Asia/Kuala_Lumpur")).isoformat(timespec="seconds")
     }
 
     jsonResponse = json.dumps(jsonDict)
