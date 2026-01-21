@@ -181,12 +181,17 @@ def get_payment_code():
 def pay():
     # Get the JSON data from the request
     data = request.get_json()
-    # paymentAmountValue = data["paymentAmount"]["value"]
-    # paymentAmountCurrency = data["paymentAmount"]["currency"]
-    # payToAmountValue = data["payToAmount"]["value"]
-    # payToAmountCurrency = data["payToAmount"]["currency"]
-    paymentRequestId = data["paymentRequestId"]
-    print(data)
+    paymentAmountValue = (data.get("paymentAmount", {}).get("value", ""))
+    paymentAmountCurrency = (data.get("paymentAmount", {}).get("currency", ""))
+    payToAmountValue = (data.get("payToAmount", {}).get("value", ""))
+    payToAmountCurrency = (data.get("payToAmount", {}).get("currency", ""))
+    paymentRequestId = data.get("paymentRequestId", "")
+
+    print(paymentAmountValue)
+    print(paymentAmountCurrency)
+    print(payToAmountValue)
+    print(payToAmountCurrency)
+    print(paymentRequestId)
 
     #get value from env
     load_dotenv()
@@ -203,13 +208,14 @@ def pay():
         print("not exist")
         paymentId = datetime.now(ZoneInfo("Asia/Kuala_Lumpur")).strftime("%Y%m%d%H%M%S")
         paymentTime = datetime.now(ZoneInfo("Asia/Kuala_Lumpur")).isoformat(timespec="seconds")
-        save = paymentId + "|" + paymentTime
+        save = paymentId + "|" + paymentTime + "|" + paymentAmountValue + "|" + paymentAmountCurrency + "|" + payToAmountValue + "|" + payToAmountCurrency
         r.set(paymentRequestId, save)
     else:
         print("exist")
         saved = r.get(paymentRequestId)
-        paymentId = saved.split('|')[0]
-        paymentTime = saved.split('|')[1]
+        savedSplited = saved.split('|')
+        paymentId = savedSplited[0]
+        paymentTime = savedSplited[1]
 
     formattedDateTime = datetime.now(ZoneInfo("Asia/Kuala_Lumpur")).strftime("%Y%m%d%H%M%S%z")
 
@@ -238,6 +244,89 @@ def pay():
 
     # forward response as JSON
     return Response(jsonResponse, 200, headers)
+    
+@app.route('/query', methods=['POST'])
+def query():
+    # Get the JSON data from the request
+    data = request.get_json()
+    paymentRequestId = data.get("paymentRequestId", "")
+    
+    #get value from env
+    load_dotenv()
+
+    #get value from env
+    clientId = os.getenv("CLIENTID")
+    privateKey = os.getenv("RSAENCRYPTKEY")
+
+    #redis
+    r = redis.Redis.from_url(os.environ.get('REDIS_URL'),decode_responses=True)
+
+    jsonDict = {}
+
+    #check if paymentRequestId in redis (order exist), jsonDict arrangemenet
+    if r.exists(paymentRequestId):
+        print("exist")
+        saved = r.get(paymentRequestId)
+        savedSplited = saved.split('|')
+        paymentId = savedSplited[0]
+        paymentTime = savedSplited[1]
+        paymentAmountValue = savedSplited[2]
+        paymentAmountCurrency = savedSplited[3]
+        payToAmountValue = savedSplited[4]
+        payToAmountCurrency = savedSplited[5]
+
+        jsonDict["result"] = {
+            "resultCode": "SUCCESS",
+            "resultStatus": "S",
+            "resultMessage": "success"
+        }
+
+        jsonDict["paymentResult"] = {
+            "resultCode": "SUCCESS",
+            "resultStatus": "S",
+            "resultMessage": "success"
+        }
+
+        jsonDict["paymentId"] = paymentId
+        jsonDict["paymentTime"] = paymentTime
+
+        if paymentAmountValue is not None or paymentAmountValue != "":
+            jsonDict["paymentAmount"] = {
+                "value": paymentAmountValue,
+                "currency": paymentAmountCurrency
+            }
+
+        if payToAmountValue is not None or payToAmountValue != "":
+            jsonDict["payToAmount"] = {
+                "value": payToAmountValue,
+                "currency": payToAmountCurrency
+            }
+
+        jsonDict["customerId"] = "1234567890123456"
+    else: 
+        jsonDict["result"] = {
+            "resultCode": "FAIL",
+            "resultStatus": "ORDER_NOT_EXIST",
+            "resultMessage": "order not exist"
+        }
+
+    formattedDateTime = datetime.now(ZoneInfo("Asia/Kuala_Lumpur")).strftime("%Y%m%d%H%M%S%z")
+    
+    jsonResponse = json.dumps(jsonDict)
+
+    #signature
+    signature = sign("POST", "/query", clientId, formattedDateTime, jsonResponse, privateKey)
+
+    headers = {
+        "Content-Type": "application/json; charset=UTF-8",
+        "response-time": formattedDateTime,
+        "client-id": clientId,
+        "signature": "algorithm=RSA256,keyVersion=1,signature=" + signature
+    }
+
+    # forward response as JSON
+    return Response(jsonResponse, 200, headers)
+
 
 if __name__ == "__main__":
     app.run(port=7777, debug=True)
