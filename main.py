@@ -187,6 +187,8 @@ def pay():
     payToAmountCurrency = (data.get("payToAmount", {}).get("currency", ""))
     paymentRequestId = data.get("paymentRequestId", "")
 
+    customerId = "1234567890123456"
+
     print(paymentAmountValue)
     print(paymentAmountCurrency)
     print(payToAmountValue)
@@ -208,7 +210,7 @@ def pay():
         print("not exist")
         paymentId = datetime.now(ZoneInfo("Asia/Kuala_Lumpur")).strftime("%Y%m%d%H%M%S")
         paymentTime = datetime.now(ZoneInfo("Asia/Kuala_Lumpur")).isoformat(timespec="seconds")
-        save = paymentId + "|" + paymentTime + "|" + paymentAmountValue + "|" + paymentAmountCurrency + "|" + payToAmountValue + "|" + payToAmountCurrency
+        save = paymentId + "|" + paymentTime + "|" + paymentAmountValue + "|" + paymentAmountCurrency + "|" + payToAmountValue + "|" + payToAmountCurrency + "|" + customerId
         r.set(paymentRequestId, save)
     else:
         print("exist")
@@ -226,7 +228,7 @@ def pay():
             "resultMessage": "success"
         },
         "paymentId": paymentId,
-        "customerId": "1234567890123456",
+        "customerId": customerId,
         "paymentTime": paymentTime
     }
 
@@ -274,6 +276,7 @@ def query():
         paymentAmountCurrency = savedSplited[3]
         payToAmountValue = savedSplited[4]
         payToAmountCurrency = savedSplited[5]
+        customerId = savedSplited[6]
 
         jsonDict["result"] = {
             "resultCode": "SUCCESS",
@@ -302,7 +305,7 @@ def query():
                 "currency": payToAmountCurrency
             }
 
-        jsonDict["customerId"] = "1234567890123456"
+        jsonDict["customerId"] = customerId
     else: 
         jsonDict["result"] = {
             "resultCode": "FAIL",
@@ -327,6 +330,257 @@ def query():
     # forward response as JSON
     return Response(jsonResponse, 200, headers)
 
+@app.route('/notify', methods=['POST'])
+def notify():
+    # Get the JSON data from the request
+    data = request.get_json()
+    paymentRequestId = data.get("paymentRequestId", "")
+    #get value from env
+    load_dotenv()
+
+    #get value from env
+    clientId = os.getenv("CLIENTID")
+    privateKey = os.getenv("RSAENCRYPTKEY")
+
+    #redis
+    r = redis.Redis.from_url(os.environ.get('REDIS_URL'),decode_responses=True)
+
+    jsonDict = {}
+
+    #check if paymentRequestId in redis (order exist), jsonDict arrangemenet
+    if r.exists(paymentRequestId):
+        print("exist")
+        saved = r.get(paymentRequestId)
+        savedSplited = saved.split('|')
+        paymentId = savedSplited[0]
+        paymentTime = savedSplited[1]
+        paymentAmountValue = savedSplited[2]
+        paymentAmountCurrency = savedSplited[3]
+        payToAmountValue = savedSplited[4]
+        payToAmountCurrency = savedSplited[5]
+        customerId = savedSplited[6]
+
+        jsonDict["paymentRequestId"] = paymentRequestId
+
+        jsonDict["paymentResult"] = {
+            "resultCode": "SUCCESS",
+            "resultStatus": "S",
+            "resultMessage": "success"
+        }
+
+        jsonDict["paymentId"] = paymentId
+        jsonDict["paymentTime"] = paymentTime
+
+        if paymentAmountValue is not None or paymentAmountValue != "":
+            jsonDict["paymentAmount"] = {
+                "value": paymentAmountValue,
+                "currency": paymentAmountCurrency
+            }
+
+        if payToAmountValue is not None or payToAmountValue != "":
+            jsonDict["payToAmount"] = {
+                "value": payToAmountValue,
+                "currency": payToAmountCurrency
+            }
+
+        jsonDict["customerId"] = customerId
+    else:
+        return Response("paymentRequestId not exist", 400)
+
+    jsonResponse = json.dumps(jsonDict)
+
+    print(jsonResponse)
+
+    #get date time now
+    now = datetime.now(ZoneInfo("Asia/Kuala_Lumpur"))
+    formattedDateTime = now.strftime("%Y%m%d%H%M%S%z")
+
+    #signature
+    signature = sign("POST", "/aps/api/v1/payments/notifyPayment", clientId, formattedDateTime, jsonResponse, privateKey)
+
+    #sending url
+    url = "https://open-sea-global.alipayplus.com/aps/api/v1/payments/notifyPayment"
+
+    headers = {
+        "Content-Type": "application/json; charset=UTF-8",
+        "request-time": formattedDateTime,
+        "client-id": clientId,
+        "signature": "algorithm=RSA256,keyVersion=1,signature=" + signature
+    }
+
+    response = requests.post(
+        url,
+        headers=headers,
+        # data=jsonResponse,     # use data, not json
+        json=jsonDict,
+        timeout=10
+    )
+
+    return Response(response, 200)
+
+@app.route('/cancel', methods=['POST'])
+def cancel():
+    # Get the JSON data from the request
+    data = request.get_json()
+    paymentRequestId = data.get("paymentRequestId", "")
+    
+    #get value from env
+    load_dotenv()
+
+    #get value from env
+    clientId = os.getenv("CLIENTID")
+    privateKey = os.getenv("RSAENCRYPTKEY")
+
+    #redis
+    r = redis.Redis.from_url(os.environ.get('REDIS_URL'),decode_responses=True)
+
+    jsonDict = {}
+
+    #check if paymentRequestId in redis (order exist), jsonDict arrangemenet
+    if r.exists(paymentRequestId):
+        print("exist")
+    
+        jsonDict["result"] = {
+            "resultCode": "SUCCESS",
+            "resultStatus": "S",
+            "resultMessage": "success"
+        }
+    else: 
+        jsonDict["result"] = {
+            "resultCode": "FAIL",
+            "resultStatus": "ORDER_NOT_EXIST",
+            "resultMessage": "order not exist"
+        }
+
+    formattedDateTime = datetime.now(ZoneInfo("Asia/Kuala_Lumpur")).strftime("%Y%m%d%H%M%S%z")
+    
+    jsonResponse = json.dumps(jsonDict)
+
+    signature = sign("POST", "/cancel", clientId, formattedDateTime, jsonResponse, privateKey)
+
+    headers = {
+        "Content-Type": "application/json; charset=UTF-8",
+        "response-time": formattedDateTime,
+        "client-id": clientId,
+        "signature": "algorithm=RSA256,keyVersion=1,signature=" + signature
+    }
+    # forward response as JSON
+    return Response(jsonResponse, 200, headers)
+
+@app.route('/refund', methods=['POST'])
+def refund():
+    # Get the JSON data from the request
+    data = request.get_json()
+    refundAmountValue = (data.get("refundAmount", {}).get("value", ""))
+    refundAmountCurrency = (data.get("refundAmount", {}).get("currency", ""))
+    refundFromAmountValue = (data.get("refundFromAmount", {}).get("value", ""))
+    refundFromAmountCurrency = (data.get("payToAmount", {}).get("currency", ""))
+    paymentRequestId = data.get("paymentRequestId", "")
+    refundRequestId = data.get("refundRequestId", "")
+
+    #get value from env
+    load_dotenv()
+
+    #get value from env
+    clientId = os.getenv("CLIENTID")
+    privateKey = os.getenv("RSAENCRYPTKEY")
+
+    #redis
+    r = redis.Redis.from_url(os.environ.get('REDIS_URL'),decode_responses=True)
+
+    jsonDict = {}
+
+    #check if paymentRequestId in redis (order exist), jsonDict arrangemenet
+    if r.exists(paymentRequestId):
+        print("exist")
+        saved = r.get(paymentRequestId)
+        savedSplited = saved.split('|')
+        paymentId = savedSplited[0]
+        paymentTime = savedSplited[1]
+        paymentAmountValue = savedSplited[2]
+        paymentAmountCurrency = savedSplited[3]
+        payToAmountValue = savedSplited[4]
+        payToAmountCurrency = savedSplited[5]
+        customerId = savedSplited[6]
+
+        paymentAmountValueDeductCal =  int(paymentAmountValue) - int(refundAmountValue)
+        refundFromAmountValueDeductCal = int(payToAmountValue) - int(refundFromAmountValue)
+
+        if ("|" + refundRequestId + "++") in saved: 
+            if len(savedSplited) > 7:
+                for item in savedSplited[7:]:
+                    if refundRequestId in item:
+                        refundDetailSplitted = item.split("++")
+                        refundRequestIdSplitted = refundDetailSplitted[0]
+                        refundIdSplitted = refundDetailSplitted[1]
+                        refundTimeSplitted = refundDetailSplitted[2]
+
+                        jsonDict["result"] = {
+                            "resultCode": "SUCCESS",
+                            "resultStatus": "S",
+                            "resultMessage": "success"
+                        }
+
+                        jsonDict["refundId"] = refundIdSplitted
+                        jsonDict["refundTime"] = refundTimeSplitted
+
+                        break
+        elif paymentAmountValueDeductCal < 0 or refundFromAmountValueDeductCal < 0:
+            print("less than 0")
+            jsonDict["result"] = {
+                "resultCode": "FAIL",
+                "resultStatus": "REFUND_AMOUNT_EXCEED",
+                "resultMessage": "Refund Amount Exceeded, do not retry"
+            }
+        else:
+            #create a refundId
+            refundId = datetime.now(ZoneInfo("Asia/Kuala_Lumpur")).strftime("%Y%m%d%H%M%S%f")[:-3]
+            refundTime = datetime.now(ZoneInfo("Asia/Kuala_Lumpur")).isoformat(timespec="seconds")
+
+            #update to db
+            newSave = paymentId + "|" + paymentTime + "|" + str(paymentAmountValueDeductCal) + "|" + paymentAmountCurrency + "|" + str(refundFromAmountValueDeductCal) + "|" + payToAmountCurrency + "|" + customerId
+            
+            if len(savedSplited) > 7:
+                for item in savedSplited[7:]:
+                    newSave += "|" + item
+
+            newSave += "|" + refundRequestId + "++" + refundId + "++" + refundTime
+            print(newSave)
+            r.set(paymentRequestId, newSave)
+
+            jsonDict["result"] = {
+                "resultCode": "SUCCESS",
+                "resultStatus": "S",
+                "resultMessage": "success"
+            }
+
+            jsonDict["refundId"] = refundId
+            jsonDict["refundTime"] = refundTime
+    else: 
+        jsonDict["result"] = {
+            "resultCode": "FAIL",
+            "resultStatus": "ORDER_NOT_EXIST",
+            "resultMessage": "order not exist"
+        }
+
+    print(jsonDict)
+
+    formattedDateTime = datetime.now(ZoneInfo("Asia/Kuala_Lumpur")).strftime("%Y%m%d%H%M%S%z")
+    
+    jsonResponse = json.dumps(jsonDict)
+
+    #signature
+    signature = sign("POST", "/refund", clientId, formattedDateTime, jsonResponse, privateKey)
+
+    headers = {
+        "Content-Type": "application/json; charset=UTF-8",
+        "response-time": formattedDateTime,
+        "client-id": clientId,
+        "signature": "algorithm=RSA256,keyVersion=1,signature=" + signature
+    }
+
+    # forward response as JSON
+    return Response(jsonResponse, 200, headers)
 
 if __name__ == "__main__":
     app.run(port=7777, debug=True)
